@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Papel {
+  ADMIN
+  OPERADOR
+  ALMOXARIFE
+  AUDITOR
+}
+
+enum StatusEquipamento {
+  RECEBIDO
+  TRIADO
+  DESMONTE
+  REUTILIZACAO
+  RECICLAGEM
+  DESCARTE
+}
+
+enum EstadoFisico {
+  EXCELENTE
+  BOM
+  REGULAR
+  RUIM
+  IRRECUPERAVEL
+}
+
+model Usuario {
+  id           String   @id @default(uuid()) @db.Uuid
+  nome         String
+  email        String   @unique
+  senhaHash    String
+  papel        Papel
+  versao       Int      @default(1)
+  criadoEm     DateTime @default(now())
+  movimentacoes Movimentacao[]
+}
+
+model Organizacao {
+  id        String    @id @default(uuid()) @db.Uuid
+  codigo    String    @unique
+  nome      String
+  cnpj      String    @unique
+  versao    Int       @default(1)
+  criadoEm  DateTime  @default(now())
+  contrato  Contrato?
+  lotes     Lote[]
+}
+
+model Contrato {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizacaoId  String       @unique @db.Uuid
+  numero         String       @unique
+  inicio         DateTime
+  fim            DateTime?
+  clausulas      Json?
+  versao         Int          @default(1)
+  criadoEm       DateTime     @default(now())
+  organizacao    Organizacao  @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+}
+
+model Lote {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizacaoId  String        @db.Uuid
+  notaFiscal     String
+  transportadora String
+  dataEntrada    DateTime
+  versao         Int           @default(1)
+  criadoEm       DateTime      @default(now())
+  organizacao    Organizacao   @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+  equipamentos   Equipamento[]
+
+  @@unique([organizacaoId, notaFiscal])
+}
+
+model Equipamento {
+  id                    String             @id @default(uuid()) @db.Uuid
+  loteId                String             @db.Uuid
+  codigoBarrasInterno   String             @unique
+  tipo                  String
+  marca                 String?
+  modelo                String?
+  status                StatusEquipamento  @default(RECEBIDO)
+  estadoFisico          EstadoFisico       @default(BOM)
+  triagemConcluida      Boolean            @default(false)
+  versao                Int                @default(1)
+  criadoEm              DateTime           @default(now())
+  lote                  Lote               @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  movimentacoes         Movimentacao[]
+}
+
+model Movimentacao {
+  id                  String             @id @default(uuid()) @db.Uuid
+  equipamentoId       String             @db.Uuid
+  usuarioId           String             @db.Uuid
+  statusAnterior      StatusEquipamento?
+  statusNovo          StatusEquipamento?
+  estadoFisicoAnterior EstadoFisico?
+  estadoFisicoNovo    EstadoFisico?
+  justificativa       String?
+  criadoEm            DateTime           @default(now())
+  equipamento         Equipamento        @relation(fields: [equipamentoId], references: [id], onDelete: Restrict)
+  usuario             Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([equipamentoId, criadoEm])
+}
